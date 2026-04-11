@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  # API Backend
+  api:
+    build: .
+    container_name: fastapi_backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/fastapi_db
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=your-super-secret-key-change-this
+      - ENVIRONMENT=development
+      - DEBUG=True
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - .:/app
+      - ./logs:/app/logs
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - backend_network
+
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: fastapi_postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=fastapi_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend_network
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: fastapi_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - backend_network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  backend_network:
+    driver: bridge
