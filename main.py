@@ -8,7 +8,7 @@ import logging
 
 from app.config.settings import settings
 from app.config.database import init_db, close_db
-from app.api.v1.router import api_router
+from app.api.router import api_router
 from app.middleware.cors import setup_cors
 from app.middleware.rate_limit import setup_rate_limiting
 from app.middleware.error_handler import setup_exception_handlers
@@ -66,7 +66,7 @@ setup_exception_handlers(app)
 app.add_middleware(LoggingMiddleware)
 
 # Incluir routers
-app.include_router(api_router, prefix=settings.API_PREFIX)
+app.include_router(api_router)
 
 
 @app.get("/")
