@@ -2,14 +2,7 @@
 Router principal de la API
 """
 from fastapi import APIRouter
-from app.api.endpoints import auth, users
-from app.api.v1.endpoints import (
-    producto,
-    cierre_caja,
-    venta,
-    detalle_venta,
-    boleta,
-)
+from app.api.endpoints import auth, users, producto, cierre_caja, venta, detalle_venta, boleta
 
 api_router = APIRouter()
 
