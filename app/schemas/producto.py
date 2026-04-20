@@ -11,7 +11,6 @@ class ProductoBase(BaseModel):
     cod_barra: Optional[str] = Field(None, max_length=100)
     categoria: Optional[str] = Field(None, max_length=100)
     nombre: str = Field(..., max_length=150)
-    descripcion: Optional[str] = Field(None, max_length=255)
     costo: Optional[Decimal] = Field(None, ge=0)
     precio: Decimal = Field(..., ge=0)
 
@@ -25,7 +24,6 @@ class ProductoUpdate(BaseModel):
     cod_barra: Optional[str] = Field(None, max_length=100)
     categoria: Optional[str] = Field(None, max_length=100)
     nombre: Optional[str] = Field(None, max_length=150)
-    descripcion: Optional[str] = Field(None, max_length=255)
     costo: Optional[Decimal] = Field(None, ge=0)
     precio: Optional[Decimal] = Field(None, ge=0)
 

@@ -13,7 +13,6 @@ class Producto(Base):
     cod_barra = Column(String(100), unique=True, nullable=True)
     categoria = Column(String(100), nullable=True)
     nombre = Column(String(150), nullable=False)
-    descripcion = Column(String(255), nullable=True)
     costo = Column(Numeric(12, 2), nullable=True)
     precio = Column(Numeric(12, 2), nullable=False)
 
