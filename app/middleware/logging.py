@@ -18,7 +18,14 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         start_time = time.time()
         
         # Log de request
-        logger.info(f"Request: {request.method} {request.url.path}")
+        has_auth = "Authorization" in request.headers
+        auth_preview = ""
+        if has_auth:
+            auth_val = request.headers["Authorization"]
+            auth_preview = f" | Auth: {auth_val[:20]}..."
+        else:
+            auth_preview = " | Auth: MISSING"
+        logger.info(f"Request: {request.method} {request.url.path}{auth_preview}")
         
         # Procesar request
         response = await call_next(request)

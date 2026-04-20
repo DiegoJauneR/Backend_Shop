@@ -39,7 +39,7 @@ class UserResponse(UserBase):
 
 class UserLogin(BaseModel):
     """Schema para login"""
-    email: EmailStr
+    username: str
     password: str
 
 

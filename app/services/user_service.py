@@ -4,10 +4,13 @@ Servicio de Usuario
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import Optional, List
+import logging
 from app.models.user import User
 from app.schemas.user import UserCreate, UserUpdate
 from app.core.security import get_password_hash, verify_password
 from app.core.exceptions import NotFoundException, ConflictException
+
+logger = logging.getLogger(__name__)
 
 
 class UserService:
@@ -113,17 +116,20 @@ class UserService:
         return True
     
     @staticmethod
-    async def authenticate(db: AsyncSession, email: str, password: str) -> Optional[User]:
+    async def authenticate(db: AsyncSession, username: str, password: str) -> Optional[User]:
         """Autenticar usuario"""
-        user = await UserService.get_by_email(db, email)
-        
+        user = await UserService.get_by_username(db, username)
+
         if not user:
+            logger.warning(f"authenticate: usuario '{username}' no encontrado")
             return None
-        
+
         if not verify_password(password, user.hashed_password):
+            logger.warning(f"authenticate: contraseña incorrecta para '{username}'")
             return None
-        
+
         if not user.is_active:
+            logger.warning(f"authenticate: usuario '{username}' inactivo")
             return None
-        
+
         return user

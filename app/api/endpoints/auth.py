@@ -2,9 +2,10 @@
 Endpoints de autenticación
 """
 from fastapi import APIRouter, Depends, status
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.config.database import get_db
-from app.schemas.user import UserLogin, Token, TokenRefresh, TokenResponse, UserCreate, UserResponse
+from app.schemas.user import Token, TokenRefresh, TokenResponse, UserCreate, UserResponse
 from app.schemas.common import MessageResponse
 from app.services.user_service import UserService
 from app.core.security import create_tokens, verify_token
@@ -30,10 +31,10 @@ async def register(
 @limiter.limit("10/minute")
 async def login(
     request: Request,
-    credentials: UserLogin,
+    credentials: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db)
 ):
-    user = await UserService.authenticate(db, credentials.email, credentials.password)
+    user = await UserService.authenticate(db, credentials.username, credentials.password)
 
     if not user:
         raise UnauthorizedException("Email o contraseña incorrectos")
