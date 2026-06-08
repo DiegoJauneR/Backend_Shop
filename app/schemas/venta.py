@@ -1,10 +1,12 @@
 """
 Schemas de Venta
 """
-from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, Literal
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
+from typing import List, Literal, Optional
 from decimal import Decimal
 from datetime import datetime, date
+
+from app.schemas.detalle_venta import DetalleVentaResponse
 
 
 TipoPago = Literal["efectivo", "debito", "credito", "transferencia"]
@@ -12,22 +14,52 @@ TipoComprobante = Literal["boleta", "factura", "cotizacion"]
 EstadoVenta = Literal["pagado", "anulada", "pendiente"]
 
 
-class VentaBase(BaseModel):
-    id_usuario: Optional[int] = None
+class VentaItemCreate(BaseModel):
+    id_producto: Optional[int] = Field(
+        None,
+        gt=0,
+        validation_alias=AliasChoices("id_producto", "producto_id", "productId"),
+    )
+    codigo: Optional[str] = Field(None, max_length=50)
+    cod_barra: Optional[str] = Field(
+        None,
+        max_length=100,
+        validation_alias=AliasChoices("cod_barra", "barcode", "barCode"),
+    )
+    cantidad: Decimal = Field(..., gt=0)
+
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+    @model_validator(mode="after")
+    def validate_producto_identifier(self):
+        if not self.id_producto and not self.codigo and not self.cod_barra:
+            raise ValueError("Debes indicar id_producto, codigo o cod_barra")
+        return self
+
+
+class VentaCreate(BaseModel):
+    id_usuario: Optional[int] = Field(
+        None,
+        validation_alias=AliasChoices("id_usuario", "employee", "employeeId"),
+    )
     id_cierre_caja: Optional[int] = None
-    subtotal: Decimal = Field(..., ge=0)
+    items: List[VentaItemCreate] = Field(
+        ...,
+        min_length=1,
+        validation_alias=AliasChoices("items", "detalles", "productos"),
+    )
     descuento: Decimal = Field(default=Decimal("0.00"), ge=0)
     recargo: Decimal = Field(default=Decimal("0.00"), ge=0)
-    total: Decimal = Field(..., ge=0)
-    tipo_pago: TipoPago
+    tipo_pago: TipoPago = Field(
+        ...,
+        validation_alias=AliasChoices("tipo_pago", "paymentMethod", "payment_method"),
+    )
     efectivo_recibido: Optional[Decimal] = Field(None, ge=0)
-    vuelto: Decimal = Field(default=Decimal("0.00"), ge=0)
-    comprobante: TipoComprobante
-    estado: EstadoVenta
-
-
-class VentaCreate(VentaBase):
+    comprobante: TipoComprobante = "boleta"
+    estado: EstadoVenta = "pagado"
     fecha: Optional[datetime] = None
+
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
 
 
 class VentaUpdate(BaseModel):
@@ -49,9 +81,21 @@ class VentaPatch(VentaUpdate):
     pass
 
 
-class VentaResponse(VentaBase):
+class VentaResponse(BaseModel):
     id: int
     fecha: Optional[datetime]
+    id_usuario: Optional[int] = None
+    id_cierre_caja: Optional[int] = None
+    subtotal: Decimal
+    descuento: Decimal
+    recargo: Decimal
+    total: Decimal
+    tipo_pago: TipoPago
+    efectivo_recibido: Optional[Decimal] = None
+    vuelto: Decimal
+    comprobante: TipoComprobante
+    estado: EstadoVenta
+    detalles: List[DetalleVentaResponse] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 

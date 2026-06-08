@@ -34,6 +34,8 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     Crear token de acceso JWT
     """
     to_encode = data.copy()
+    if "sub" in to_encode and to_encode["sub"] is not None:
+        to_encode["sub"] = str(to_encode["sub"])
     
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
@@ -55,6 +57,8 @@ def create_refresh_token(data: dict) -> str:
     Crear token de refresco JWT
     """
     to_encode = data.copy()
+    if "sub" in to_encode and to_encode["sub"] is not None:
+        to_encode["sub"] = str(to_encode["sub"])
     expire = datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     
     to_encode.update({
@@ -99,6 +103,9 @@ def verify_token(token: str, token_type: str = "access") -> dict:
             )
         
         logger.debug(f"verify_token: OK, sub={payload.get('sub')}, type={token_type_in_payload}")
+        sub = payload.get("sub")
+        if isinstance(sub, str) and sub.isdigit():
+            payload["sub"] = int(sub)
         return payload
         
     except JWTError as e:

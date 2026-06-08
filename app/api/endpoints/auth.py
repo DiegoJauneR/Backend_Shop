@@ -2,14 +2,13 @@
 Endpoints de autenticación
 """
 from fastapi import APIRouter, Depends, status
-from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.config.database import get_db
 from app.schemas.user import Token, TokenRefresh, TokenResponse, UserCreate, UserResponse
 from app.schemas.common import MessageResponse
 from app.services.user_service import UserService
 from app.core.security import create_tokens, verify_token
-from app.core.exceptions import UnauthorizedException
+from app.core.exceptions import BadRequestException, UnauthorizedException
 from app.middleware.rate_limit import limiter
 from fastapi import Request
 
@@ -31,10 +30,25 @@ async def register(
 @limiter.limit("10/minute")
 async def login(
     request: Request,
-    credentials: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db)
 ):
-    user = await UserService.authenticate(db, credentials.username, credentials.password)
+    username = None
+    password = None
+    content_type = request.headers.get("content-type", "")
+
+    if "application/json" in content_type:
+        payload = await request.json()
+        username = payload.get("username") or payload.get("email")
+        password = payload.get("password")
+    else:
+        form = await request.form()
+        username = form.get("username") or form.get("email")
+        password = form.get("password")
+
+    if not username or not password:
+        raise BadRequestException("Debes enviar usuario/email y contraseña")
+
+    user = await UserService.authenticate(db, username, password)
 
     if not user:
         raise UnauthorizedException("Email o contraseña incorrectos")

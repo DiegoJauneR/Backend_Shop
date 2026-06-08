@@ -119,6 +119,8 @@ class UserService:
     async def authenticate(db: AsyncSession, username: str, password: str) -> Optional[User]:
         """Autenticar usuario"""
         user = await UserService.get_by_username(db, username)
+        if not user:
+            user = await UserService.get_by_email(db, username)
 
         if not user:
             logger.warning(f"authenticate: usuario '{username}' no encontrado")

@@ -2,14 +2,17 @@
 Modelo de Venta
 """
 from sqlalchemy import Column, BigInteger, Integer, String, Numeric, DateTime, ForeignKey
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.config.database import Base
+
+BigIntPrimaryKey = BigInteger().with_variant(Integer, "sqlite")
 
 
 class Venta(Base):
     __tablename__ = "venta"
 
-    id = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
+    id = Column(BigIntPrimaryKey, primary_key=True, index=True, autoincrement=True)
     fecha = Column(DateTime(timezone=True), server_default=func.now())
     id_usuario = Column(Integer, ForeignKey("users.id"), nullable=True)
     id_cierre_caja = Column(BigInteger, ForeignKey("cierre_caja.id"), nullable=True)
@@ -22,6 +25,13 @@ class Venta(Base):
     vuelto = Column(Numeric(12, 2), default=0)
     comprobante = Column(String(30), nullable=False)
     estado = Column(String(30), nullable=False)
+
+    detalles = relationship(
+        "DetalleVenta",
+        back_populates="venta",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
 
     def __repr__(self):
         return f"<Venta(id={self.id}, total={self.total}, estado={self.estado})>"

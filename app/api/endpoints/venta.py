@@ -24,9 +24,19 @@ router = APIRouter(prefix="/ventas", tags=["Ventas"])
 async def list_ventas(
     skip: int = 0,
     limit: int = 100,
+    period: Optional[str] = Query(None, description="today, week, month, year o YYYY-MM-DD"),
+    employee: Optional[int] = Query(None, description="ID del trabajador"),
+    payment_method: Optional[str] = Query(None, alias="paymentMethod"),
     db: AsyncSession = Depends(get_db),
 ):
-    return await VentaService.get_all(db, skip=skip, limit=limit)
+    return await VentaService.get_all(
+        db,
+        skip=skip,
+        limit=limit,
+        period=period,
+        employee=employee,
+        payment_method=payment_method,
+    )
 
 
 @router.get("/hoy", response_model=List[VentaResponse])
@@ -97,6 +107,14 @@ async def patch_venta(
     db: AsyncSession = Depends(get_db),
 ):
     return await VentaService.update(db, venta_id, data)
+
+
+@router.patch("/{venta_id}/anular", response_model=VentaResponse)
+async def anular_venta(
+    venta_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    return await VentaService.anular(db, venta_id)
 
 
 @router.delete("/{venta_id}", response_model=MessageResponse)

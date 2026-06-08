@@ -1,9 +1,9 @@
 """
 Endpoints CRUD de Producto
 """
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
+from typing import List, Optional
 from app.config.database import get_db
 from app.schemas.producto import ProductoCreate, ProductoUpdate, ProductoPatch, ProductoResponse
 from app.schemas.common import MessageResponse
@@ -16,9 +16,18 @@ router = APIRouter(prefix="/productos", tags=["Productos"])
 async def list_productos(
     skip: int = 0,
     limit: int = 100,
+    search: Optional[str] = Query(None, description="Texto para buscar por nombre, codigo, barra o categoria"),
     db: AsyncSession = Depends(get_db),
 ):
-    return await ProductoService.get_all(db, skip=skip, limit=limit)
+    return await ProductoService.get_all(db, skip=skip, limit=limit, search=search)
+
+
+@router.get("/barcode/{cod_barra}", response_model=ProductoResponse)
+async def get_producto_by_barcode(
+    cod_barra: str,
+    db: AsyncSession = Depends(get_db),
+):
+    return await ProductoService.get_by_barcode(db, cod_barra)
 
 
 @router.get("/{producto_id}", response_model=ProductoResponse)

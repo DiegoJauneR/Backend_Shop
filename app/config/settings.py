@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
-    API_PREFIX: str = "/api/v1"
+    API_PREFIX: str = ""
     
     # Server
     HOST: str = "0.0.0.0"
