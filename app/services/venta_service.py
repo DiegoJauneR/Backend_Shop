@@ -280,7 +280,11 @@ class VentaService:
         return result.scalars().all()
 
     @staticmethod
-    async def get_resumen_diario(db: AsyncSession, fecha: Optional[date] = None) -> ResumenDiario:
+    async def get_resumen_diario(
+        db: AsyncSession,
+        fecha: Optional[date] = None,
+        usuario_id: Optional[int] = None,
+    ) -> ResumenDiario:
         target = fecha or date.today()
         end = target + timedelta(days=1)
 
@@ -304,6 +308,9 @@ class VentaService:
             Venta.fecha < datetime.combine(end, time.min),
             Venta.estado != "anulada",
         )
+
+        if usuario_id is not None:
+            stmt = stmt.where(Venta.id_usuario == usuario_id)
 
         result = await db.execute(stmt)
         row = result.one()

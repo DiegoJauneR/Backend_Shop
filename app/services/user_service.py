@@ -15,6 +15,11 @@ logger = logging.getLogger(__name__)
 
 class UserService:
     """Servicio para operaciones de usuario"""
+
+    @staticmethod
+    def _role_for_user(user_data) -> str:
+        role = getattr(user_data, "role", None) or "vendedor"
+        return "admin" if role == "admin" else "vendedor"
     
     @staticmethod
     async def get_by_id(db: AsyncSession, user_id: int) -> Optional[User]:
@@ -37,7 +42,7 @@ class UserService:
     @staticmethod
     async def get_all(db: AsyncSession, skip: int = 0, limit: int = 100) -> List[User]:
         """Obtener todos los usuarios"""
-        result = await db.execute(select(User).offset(skip).limit(limit))
+        result = await db.execute(select(User).order_by(User.full_name, User.username).offset(skip).limit(limit))
         return result.scalars().all()
     
     @staticmethod
@@ -55,12 +60,16 @@ class UserService:
         
         # Crear usuario
         hashed_password = get_password_hash(user_data.password)
+        role = UserService._role_for_user(user_data)
         
         db_user = User(
             email=user_data.email,
             username=user_data.username,
             full_name=user_data.full_name,
             hashed_password=hashed_password,
+            is_active=getattr(user_data, "is_active", True),
+            is_superuser=role == "admin",
+            role=role,
         )
         
         db.add(db_user)
@@ -82,6 +91,10 @@ class UserService:
         # Si se actualiza el password, hashearlo
         if "password" in update_data:
             update_data["hashed_password"] = get_password_hash(update_data.pop("password"))
+
+        if "role" in update_data:
+            update_data["role"] = "admin" if update_data["role"] == "admin" else "vendedor"
+            update_data["is_superuser"] = update_data["role"] == "admin"
         
         # Verificar email único
         if "email" in update_data and update_data["email"] != db_user.email:
