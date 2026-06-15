@@ -25,7 +25,6 @@ class ProductoService:
             stmt = stmt.where(
                 or_(
                     Producto.nombre.ilike(text),
-                    Producto.codigo.ilike(text),
                     Producto.cod_barra.ilike(text),
                     Producto.categoria.ilike(text),
                 )
@@ -62,12 +61,14 @@ class ProductoService:
 
     @staticmethod
     async def create(db: AsyncSession, data: ProductoCreate) -> Producto:
-        if data.codigo:
-            await ProductoService._check_unique(db, "codigo", data.codigo)
-        if data.cod_barra:
-            await ProductoService._check_unique(db, "cod_barra", data.cod_barra)
+        product_data = data.model_dump()
+        if product_data.get("tipo_venta") == "peso":
+            product_data["cod_barra"] = None
 
-        obj = Producto(**data.model_dump())
+        if product_data.get("cod_barra"):
+            await ProductoService._check_unique(db, "cod_barra", product_data["cod_barra"])
+
+        obj = Producto(**product_data)
         db.add(obj)
         await db.commit()
         await db.refresh(obj)
@@ -77,9 +78,10 @@ class ProductoService:
     async def update(db: AsyncSession, producto_id: int, data: ProductoUpdate) -> Producto:
         obj = await ProductoService.get_by_id(db, producto_id)
         update_data = data.model_dump(exclude_unset=True)
+        target_type = update_data.get("tipo_venta", obj.tipo_venta)
+        if target_type == "peso":
+            update_data["cod_barra"] = None
 
-        if "codigo" in update_data and update_data["codigo"] and update_data["codigo"] != obj.codigo:
-            await ProductoService._check_unique(db, "codigo", update_data["codigo"], exclude_id=producto_id)
         if "cod_barra" in update_data and update_data["cod_barra"] and update_data["cod_barra"] != obj.cod_barra:
             await ProductoService._check_unique(db, "cod_barra", update_data["cod_barra"], exclude_id=producto_id)
 

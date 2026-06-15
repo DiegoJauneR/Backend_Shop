@@ -16,6 +16,7 @@ from app.schemas.venta import (
 )
 from app.schemas.common import MessageResponse
 from app.services.venta_service import VentaService
+from app.core.security import get_current_user_id
 
 router = APIRouter(prefix="/ventas", tags=["Ventas"])
 
@@ -86,9 +87,10 @@ async def get_venta(
 @router.post("", response_model=VentaResponse, status_code=status.HTTP_201_CREATED)
 async def create_venta(
     data: VentaCreate,
+    user_id: int = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ):
-    return await VentaService.create(db, data)
+    return await VentaService.create(db, data, current_user_id=user_id)
 
 
 @router.put("/{venta_id}", response_model=VentaResponse)

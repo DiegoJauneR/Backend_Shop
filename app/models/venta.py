@@ -32,6 +32,20 @@ class Venta(Base):
         cascade="all, delete-orphan",
         lazy="selectin",
     )
+    boleta = relationship(
+        "Boleta",
+        back_populates="venta",
+        cascade="all, delete-orphan",
+        uselist=False,
+        lazy="selectin",
+    )
+    usuario = relationship("User", lazy="selectin")
+
+    @property
+    def employee_name(self):
+        if not self.usuario:
+            return None
+        return self.usuario.full_name or self.usuario.username or self.usuario.email
 
     def __repr__(self):
         return f"<Venta(id={self.id}, total={self.total}, estado={self.estado})>"

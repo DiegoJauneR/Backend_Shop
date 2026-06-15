@@ -9,6 +9,8 @@ from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 
 from app.core.exceptions import BadRequestException, NotFoundException
+from app.models.boleta import Boleta
+from app.models.boleta_detalle import BoletaDetalle
 from app.models.detalle_venta import DetalleVenta
 from app.models.producto import Producto
 from app.models.venta import Venta
@@ -27,6 +29,14 @@ class VentaService:
     @staticmethod
     def _money(value: Decimal) -> Decimal:
         return value.quantize(VentaService.MONEY_PRECISION)
+
+    @staticmethod
+    def _load_options():
+        return (
+            selectinload(Venta.detalles),
+            selectinload(Venta.usuario),
+            selectinload(Venta.boleta).selectinload(Boleta.detalles),
+        )
 
     @staticmethod
     def _validate_payment_method(payment_method: Optional[str]) -> None:
@@ -99,7 +109,7 @@ class VentaService:
         employee: Optional[int] = None,
         payment_method: Optional[str] = None,
     ) -> List[Venta]:
-        stmt = select(Venta).options(selectinload(Venta.detalles))
+        stmt = select(Venta).options(*VentaService._load_options())
         stmt = VentaService._apply_filters(stmt, period, employee, payment_method)
         result = await db.execute(
             stmt.order_by(Venta.fecha.desc()).offset(skip).limit(limit)
@@ -110,7 +120,7 @@ class VentaService:
     async def get_by_id(db: AsyncSession, venta_id: int) -> Venta:
         result = await db.execute(
             select(Venta)
-            .options(selectinload(Venta.detalles))
+            .options(*VentaService._load_options())
             .where(Venta.id == venta_id)
         )
         obj = result.scalar_one_or_none()
@@ -124,10 +134,8 @@ class VentaService:
 
         if item.id_producto:
             stmt = stmt.where(Producto.id == item.id_producto)
-        elif item.cod_barra:
-            stmt = stmt.where(Producto.cod_barra == item.cod_barra)
         else:
-            stmt = stmt.where(Producto.codigo == item.codigo)
+            stmt = stmt.where(Producto.cod_barra == item.cod_barra)
 
         result = await db.execute(stmt)
         producto = result.scalar_one_or_none()
@@ -136,7 +144,11 @@ class VentaService:
         return producto
 
     @staticmethod
-    async def create(db: AsyncSession, data: VentaCreate) -> Venta:
+    async def create(
+        db: AsyncSession,
+        data: VentaCreate,
+        current_user_id: Optional[int] = None,
+    ) -> Venta:
         if data.estado == "anulada":
             raise BadRequestException("Para anular una venta usa el endpoint de anulación")
 
@@ -146,20 +158,15 @@ class VentaService:
         for item in data.items:
             producto = await VentaService._get_producto_for_item(db, item)
             cantidad = Decimal(item.cantidad)
-            stock_actual = Decimal(producto.stock or 0)
-
-            if stock_actual < cantidad:
-                raise BadRequestException(f"Stock insuficiente para {producto.nombre}")
 
             precio_unitario = VentaService._money(Decimal(producto.precio))
             subtotal_linea = VentaService._money(precio_unitario * cantidad)
             subtotal += subtotal_linea
-            producto.stock = stock_actual - cantidad
 
             detalles_data.append(
                 {
                     "id_producto": producto.id,
-                    "codigo_producto": producto.codigo,
+                    "codigo_producto": producto.cod_barra,
                     "nombre_producto": producto.nombre,
                     "cantidad": cantidad,
                     "precio_unitario": precio_unitario,
@@ -185,7 +192,7 @@ class VentaService:
             efectivo_recibido = data.efectivo_recibido
 
         venta_data = {
-            "id_usuario": data.id_usuario,
+            "id_usuario": current_user_id if current_user_id is not None else data.id_usuario,
             "id_cierre_caja": data.id_cierre_caja,
             "subtotal": subtotal,
             "descuento": descuento,
@@ -205,6 +212,19 @@ class VentaService:
 
         for detalle_data in detalles_data:
             db.add(DetalleVenta(id_venta=venta.id, **detalle_data))
+
+        if data.comprobante == "boleta":
+            boleta = Boleta(
+                id_venta=venta.id,
+                subtotal=subtotal,
+                total_pagar=total,
+                tipo_pago=data.tipo_pago,
+            )
+            db.add(boleta)
+            await db.flush()
+
+            for detalle_data in detalles_data:
+                db.add(BoletaDetalle(id_boleta=boleta.id_boleta, **detalle_data))
 
         await db.commit()
         return await VentaService.get_by_id(db, venta.id)
@@ -230,19 +250,6 @@ class VentaService:
         if venta.estado == "anulada":
             raise BadRequestException("La venta ya está anulada")
 
-        for detalle in venta.detalles:
-            if not detalle.id_producto:
-                continue
-
-            result = await db.execute(
-                select(Producto)
-                .where(Producto.id == detalle.id_producto)
-                .with_for_update()
-            )
-            producto = result.scalar_one_or_none()
-            if producto:
-                producto.stock = Decimal(producto.stock or 0) + Decimal(detalle.cantidad)
-
         venta.estado = "anulada"
         await db.commit()
         return await VentaService.get_by_id(db, venta_id)
@@ -253,7 +260,7 @@ class VentaService:
         manana = hoy + timedelta(days=1)
         result = await db.execute(
             select(Venta)
-            .options(selectinload(Venta.detalles))
+            .options(*VentaService._load_options())
             .where(
                 Venta.fecha >= datetime.combine(hoy, time.min),
                 Venta.fecha < datetime.combine(manana, time.min),
@@ -266,7 +273,7 @@ class VentaService:
     async def get_ventas_por_usuario(db: AsyncSession, usuario_id: int) -> List[Venta]:
         result = await db.execute(
             select(Venta)
-            .options(selectinload(Venta.detalles))
+            .options(*VentaService._load_options())
             .where(Venta.id_usuario == usuario_id)
             .order_by(Venta.fecha.desc())
         )

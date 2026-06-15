@@ -16,7 +16,7 @@ router = APIRouter(prefix="/productos", tags=["Productos"])
 async def list_productos(
     skip: int = 0,
     limit: int = 100,
-    search: Optional[str] = Query(None, description="Texto para buscar por nombre, codigo, barra o categoria"),
+    search: Optional[str] = Query(None, description="Texto para buscar por nombre, barra o categoria"),
     db: AsyncSession = Depends(get_db),
 ):
     return await ProductoService.get_all(db, skip=skip, limit=limit, search=search)

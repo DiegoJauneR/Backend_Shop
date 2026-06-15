@@ -15,13 +15,11 @@ class Producto(Base):
     )
 
     id = Column(BigIntPrimaryKey, primary_key=True, index=True, autoincrement=True)
-    codigo = Column(String(50), unique=True, nullable=True)
     cod_barra = Column(String(100), unique=True, nullable=True)
     categoria = Column(String(100), nullable=True)
     nombre = Column(String(150), nullable=False)
     costo = Column(Numeric(12, 2), nullable=True)
     precio = Column(Numeric(12, 2), nullable=False)
-    stock = Column(Numeric(12, 3), nullable=False, default=0, server_default="0")
     unidad = Column(String(30), nullable=False, default="unidad", server_default="unidad")
     tipo_venta = Column(String(20), nullable=False, default="unidad", server_default="unidad")
 

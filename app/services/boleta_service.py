@@ -3,6 +3,7 @@ Servicio de Boleta
 """
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from typing import List
 from app.models.boleta import Boleta
 from app.schemas.boleta import BoletaCreate, BoletaUpdate
@@ -13,12 +14,18 @@ class BoletaService:
 
     @staticmethod
     async def get_all(db: AsyncSession, skip: int = 0, limit: int = 100) -> List[Boleta]:
-        result = await db.execute(select(Boleta).offset(skip).limit(limit))
+        result = await db.execute(
+            select(Boleta).options(selectinload(Boleta.detalles)).offset(skip).limit(limit)
+        )
         return result.scalars().all()
 
     @staticmethod
     async def get_by_id(db: AsyncSession, boleta_id: int) -> Boleta:
-        result = await db.execute(select(Boleta).where(Boleta.id_boleta == boleta_id))
+        result = await db.execute(
+            select(Boleta)
+            .options(selectinload(Boleta.detalles))
+            .where(Boleta.id_boleta == boleta_id)
+        )
         obj = result.scalar_one_or_none()
         if not obj:
             raise NotFoundException("Boleta no encontrada")
@@ -26,7 +33,11 @@ class BoletaService:
 
     @staticmethod
     async def get_by_venta(db: AsyncSession, venta_id: int) -> Boleta:
-        result = await db.execute(select(Boleta).where(Boleta.id_venta == venta_id))
+        result = await db.execute(
+            select(Boleta)
+            .options(selectinload(Boleta.detalles))
+            .where(Boleta.id_venta == venta_id)
+        )
         obj = result.scalar_one_or_none()
         if not obj:
             raise NotFoundException("Boleta para la venta indicada no encontrada")

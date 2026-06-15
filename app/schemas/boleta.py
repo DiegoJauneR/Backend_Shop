@@ -2,12 +2,25 @@
 Schemas de Boleta
 """
 from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, Literal
+from typing import List, Optional, Literal
 from decimal import Decimal
 from datetime import datetime
 
 
 TipoPago = Literal["efectivo", "debito", "credito", "transferencia"]
+
+
+class BoletaDetalleResponse(BaseModel):
+    id_detalle: int
+    id_boleta: int
+    id_producto: Optional[int] = None
+    codigo_producto: Optional[str] = None
+    nombre_producto: str
+    cantidad: Decimal
+    precio_unitario: Decimal
+    subtotal_linea: Decimal
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class BoletaBase(BaseModel):
@@ -35,5 +48,6 @@ class BoletaPatch(BoletaUpdate):
 class BoletaResponse(BoletaBase):
     id_boleta: int
     fecha_emision: Optional[datetime]
+    detalles: List[BoletaDetalleResponse] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)

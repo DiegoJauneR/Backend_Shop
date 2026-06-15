@@ -1,11 +1,12 @@
 """
 Schemas de Venta
 """
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 from typing import List, Literal, Optional
 from decimal import Decimal
 from datetime import datetime, date
 
+from app.schemas.boleta import BoletaResponse
 from app.schemas.detalle_venta import DetalleVentaResponse
 
 
@@ -20,7 +21,6 @@ class VentaItemCreate(BaseModel):
         gt=0,
         validation_alias=AliasChoices("id_producto", "producto_id", "productId"),
     )
-    codigo: Optional[str] = Field(None, max_length=50)
     cod_barra: Optional[str] = Field(
         None,
         max_length=100,
@@ -32,8 +32,8 @@ class VentaItemCreate(BaseModel):
 
     @model_validator(mode="after")
     def validate_producto_identifier(self):
-        if not self.id_producto and not self.codigo and not self.cod_barra:
-            raise ValueError("Debes indicar id_producto, codigo o cod_barra")
+        if not self.id_producto and not self.cod_barra:
+            raise ValueError("Debes indicar id_producto o cod_barra")
         return self
 
 
@@ -61,6 +61,20 @@ class VentaCreate(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True, extra="ignore")
 
+    @field_validator("id_usuario", "id_cierre_caja", mode="before")
+    @classmethod
+    def zero_ids_to_none(cls, value):
+        if value in (0, "0", ""):
+            return None
+        return value
+
+    @field_validator("efectivo_recibido", mode="before")
+    @classmethod
+    def zero_cash_to_none(cls, value):
+        if value in (None, "", 0, 0.0, "0", "0.0", "0.00"):
+            return None
+        return value
+
 
 class VentaUpdate(BaseModel):
     id_usuario: Optional[int] = None
@@ -85,6 +99,7 @@ class VentaResponse(BaseModel):
     id: int
     fecha: Optional[datetime]
     id_usuario: Optional[int] = None
+    employee_name: Optional[str] = None
     id_cierre_caja: Optional[int] = None
     subtotal: Decimal
     descuento: Decimal
@@ -96,6 +111,7 @@ class VentaResponse(BaseModel):
     comprobante: TipoComprobante
     estado: EstadoVenta
     detalles: List[DetalleVentaResponse] = Field(default_factory=list)
+    boleta: Optional[BoletaResponse] = None
 
     model_config = ConfigDict(from_attributes=True)
 

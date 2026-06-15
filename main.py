@@ -67,6 +67,7 @@ app.add_middleware(LoggingMiddleware)
 
 # Incluir routers
 app.include_router(api_router)
+app.include_router(api_router, prefix="/api")
 
 
 @app.get("/")
