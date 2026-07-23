@@ -1,9 +1,10 @@
-name: backend_shop
+version: '3.8'
 
 services:
+  # API Backend
   api:
     build: .
-    container_name: backend_shop_api
+    container_name: fastapi_backend
     ports:
       - "8000:8000"
     environment:
@@ -22,9 +23,10 @@ services:
     networks:
       - backend_network
 
+  # PostgreSQL Database
   db:
     image: postgres:15-alpine
-    container_name: backend_shop_db
+    container_name: fastapi_postgres
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
@@ -36,9 +38,10 @@ services:
     networks:
       - backend_network
 
+  # Redis
   redis:
     image: redis:7-alpine
-    container_name: backend_shop_redis
+    container_name: fastapi_redis
     ports:
       - "6379:6379"
     volumes:
