@@ -13,6 +13,7 @@ from app.schemas.detalle_venta import DetalleVentaResponse
 TipoPago = Literal["efectivo", "debito", "credito", "transferencia"]
 TipoComprobante = Literal["boleta", "factura", "cotizacion"]
 EstadoVenta = Literal["pagado", "anulada", "pendiente"]
+OrigenVentaItem = Literal["PRODUCTO", "BALANZA"]
 
 
 class VentaItemCreate(BaseModel):
@@ -27,11 +28,30 @@ class VentaItemCreate(BaseModel):
         validation_alias=AliasChoices("cod_barra", "barcode", "barCode"),
     )
     cantidad: Decimal = Field(..., gt=0)
+    origen: OrigenVentaItem = Field(
+        default="PRODUCTO",
+        validation_alias=AliasChoices("origen", "origen_producto", "origin"),
+    )
+    ticket_balanza: Optional[str] = Field(
+        None,
+        max_length=20,
+        validation_alias=AliasChoices("ticket_balanza", "scale_ticket", "scaleTicket"),
+    )
+    total_balanza: Optional[Decimal] = Field(
+        None,
+        ge=0,
+        validation_alias=AliasChoices("total_balanza", "scale_total", "scaleTotal"),
+    )
 
     model_config = ConfigDict(populate_by_name=True, extra="ignore")
 
     @model_validator(mode="after")
     def validate_producto_identifier(self):
+        if self.origen == "BALANZA":
+            if not self.cod_barra:
+                raise ValueError("Debes indicar cod_barra para tickets de balanza")
+            return self
+
         if not self.id_producto and not self.cod_barra:
             raise ValueError("Debes indicar id_producto o cod_barra")
         return self

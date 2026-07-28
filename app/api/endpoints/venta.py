@@ -120,6 +120,16 @@ async def ventas_por_usuario(
     return await VentaService.get_ventas_por_usuario(db, usuario_id)
 
 
+@router.get("/tickets-balanza/{codigo_barra}/validar")
+async def validar_ticket_balanza(
+    codigo_barra: str,
+    current_user=Depends(get_current_sales_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Validar y decodificar una boleta emitida por la balanza."""
+    return await VentaService.validate_ticket_balanza(db, codigo_barra)
+
+
 @router.get("/{venta_id}", response_model=VentaResponse)
 async def get_venta(
     venta_id: int,

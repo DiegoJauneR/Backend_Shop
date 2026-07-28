@@ -2,17 +2,19 @@
 Servicio de Venta
 """
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 
-from app.core.exceptions import BadRequestException, NotFoundException
+from app.core.exceptions import BadRequestException, ConflictException, NotFoundException
 from app.models.boleta import Boleta
 from app.models.boleta_detalle import BoletaDetalle
 from app.models.detalle_venta import DetalleVenta
 from app.models.producto import Producto
+from app.models.ticket_balanza import TicketBalanza
 from app.models.venta import Venta
 from app.schemas.venta import (
     ResumenDiario,
@@ -25,10 +27,64 @@ from app.schemas.venta import (
 
 class VentaService:
     MONEY_PRECISION = Decimal("0.01")
+    SCALE_TICKET_PREFIX = "29"
+    SCALE_ORIGIN = "BALANZA"
 
     @staticmethod
     def _money(value: Decimal) -> Decimal:
         return value.quantize(VentaService.MONEY_PRECISION)
+
+    @staticmethod
+    def _ean13_check_digit(payload: str) -> int:
+        total = 0
+        for index, digit in enumerate(payload):
+            multiplier = 1 if index % 2 == 0 else 3
+            total += int(digit) * multiplier
+        return (10 - (total % 10)) % 10
+
+    @staticmethod
+    def parse_ticket_balanza(cod_barra: str) -> dict:
+        code = (cod_barra or "").strip()
+
+        if not code.startswith(VentaService.SCALE_TICKET_PREFIX):
+            raise BadRequestException("El codigo no corresponde a una boleta de balanza")
+        if len(code) != 13 or not code.isdigit():
+            raise BadRequestException("Codigo de balanza invalido")
+        if VentaService._ean13_check_digit(code[:12]) != int(code[-1]):
+            raise BadRequestException("Codigo de balanza con digito verificador invalido")
+
+        numero_ticket = code[2:7].lstrip("0") or "0"
+        total = VentaService._money(Decimal(code[7:12]))
+
+        if total <= Decimal("0.00"):
+            raise BadRequestException("El total de la boleta de balanza debe ser mayor a cero")
+
+        return {
+            "codigo_barra": code,
+            "numero_ticket": numero_ticket,
+            "total": total,
+            "origen": VentaService.SCALE_ORIGIN,
+            "nombre_producto": f"Productos pesados - Ticket {numero_ticket}",
+        }
+
+    @staticmethod
+    async def _ensure_ticket_balanza_unused(db: AsyncSession, ticket_data: dict) -> None:
+        result = await db.execute(
+            select(TicketBalanza).where(
+                or_(
+                    TicketBalanza.numero_ticket == ticket_data["numero_ticket"],
+                    TicketBalanza.codigo_barra == ticket_data["codigo_barra"],
+                )
+            )
+        )
+        if result.scalar_one_or_none():
+            raise ConflictException("El ticket de balanza ya fue utilizado")
+
+    @staticmethod
+    async def validate_ticket_balanza(db: AsyncSession, cod_barra: str) -> dict:
+        ticket_data = VentaService.parse_ticket_balanza(cod_barra)
+        await VentaService._ensure_ticket_balanza_unused(db, ticket_data)
+        return ticket_data
 
     @staticmethod
     def _load_options():
@@ -154,8 +210,40 @@ class VentaService:
 
         subtotal = Decimal("0.00")
         detalles_data = []
+        tickets_balanza_data = []
+        tickets_balanza_en_venta = set()
 
         for item in data.items:
+            cod_barra = (item.cod_barra or "").strip()
+
+            if item.origen == VentaService.SCALE_ORIGIN or cod_barra.startswith(VentaService.SCALE_TICKET_PREFIX):
+                ticket_data = await VentaService.validate_ticket_balanza(db, cod_barra)
+
+                if ticket_data["numero_ticket"] in tickets_balanza_en_venta:
+                    raise BadRequestException("El ticket de balanza ya esta en esta venta")
+
+                if item.ticket_balanza and item.ticket_balanza.lstrip("0") != ticket_data["numero_ticket"]:
+                    raise BadRequestException("El numero de ticket no coincide con el codigo de balanza")
+
+                if item.total_balanza is not None and VentaService._money(item.total_balanza) != ticket_data["total"]:
+                    raise BadRequestException("El total informado no coincide con el codigo de balanza")
+
+                tickets_balanza_en_venta.add(ticket_data["numero_ticket"])
+                tickets_balanza_data.append(ticket_data)
+
+                subtotal += ticket_data["total"]
+                detalles_data.append(
+                    {
+                        "id_producto": None,
+                        "codigo_producto": ticket_data["codigo_barra"],
+                        "nombre_producto": ticket_data["nombre_producto"],
+                        "cantidad": Decimal("1"),
+                        "precio_unitario": ticket_data["total"],
+                        "subtotal_linea": ticket_data["total"],
+                    }
+                )
+                continue
+
             producto = await VentaService._get_producto_for_item(db, item)
             cantidad = Decimal(item.cantidad)
 
@@ -213,6 +301,17 @@ class VentaService:
         for detalle_data in detalles_data:
             db.add(DetalleVenta(id_venta=venta.id, **detalle_data))
 
+        for ticket_data in tickets_balanza_data:
+            db.add(
+                TicketBalanza(
+                    id_venta=venta.id,
+                    numero_ticket=ticket_data["numero_ticket"],
+                    codigo_barra=ticket_data["codigo_barra"],
+                    total=ticket_data["total"],
+                    origen=ticket_data["origen"],
+                )
+            )
+
         if data.comprobante == "boleta":
             boleta = Boleta(
                 id_venta=venta.id,
@@ -226,7 +325,11 @@ class VentaService:
             for detalle_data in detalles_data:
                 db.add(BoletaDetalle(id_boleta=boleta.id_boleta, **detalle_data))
 
-        await db.commit()
+        try:
+            await db.commit()
+        except IntegrityError as exc:
+            await db.rollback()
+            raise ConflictException("El ticket de balanza ya fue utilizado") from exc
         return await VentaService.get_by_id(db, venta.id)
 
     @staticmethod

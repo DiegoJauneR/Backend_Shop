@@ -8,5 +8,15 @@ from app.models.venta import Venta
 from app.models.detalle_venta import DetalleVenta
 from app.models.boleta import Boleta
 from app.models.boleta_detalle import BoletaDetalle
+from app.models.ticket_balanza import TicketBalanza
 
-__all__ = ["User", "Producto", "CierreCaja", "Venta", "DetalleVenta", "Boleta", "BoletaDetalle"]
+__all__ = [
+    "User",
+    "Producto",
+    "CierreCaja",
+    "Venta",
+    "DetalleVenta",
+    "Boleta",
+    "BoletaDetalle",
+    "TicketBalanza",
+]

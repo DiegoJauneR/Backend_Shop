@@ -39,6 +39,12 @@ class Venta(Base):
         uselist=False,
         lazy="selectin",
     )
+    tickets_balanza = relationship(
+        "TicketBalanza",
+        back_populates="venta",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
     usuario = relationship("User", lazy="selectin")
 
     @property
